@@ -1,0 +1,5 @@
+__pycache__/
+.DS_Store
+copilot_old.py
+copilot_v1.py
+telemetry_backup.csv

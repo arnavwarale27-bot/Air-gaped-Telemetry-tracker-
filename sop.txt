@@ -1,0 +1,19 @@
+Rule 1: Latency > 150 ms AND packet loss > 2%
+Cause: link saturation from background traffic
+Action: throttle QoS Class 4, reroute critical voice/data over secondary SD-WAN
+
+Rule 2: Packet loss > 10%
+Cause: faulty cable or interface
+Action: check the interface, replace the cable, switch to the backup link
+
+Rule 3: Jitter > 30 ms
+Cause: congestion or unstable link
+Action: prioritise voice traffic, check the QoS policy
+
+Rule 4: Node status = down
+Cause: device or power failure
+Action: check power, restart the device, escalate to the on-site team
+
+Rule 5: Latency < 100 ms AND packet loss < 1%
+Cause: none, link is healthy
+Action: no action needed

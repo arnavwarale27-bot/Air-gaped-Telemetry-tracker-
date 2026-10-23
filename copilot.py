@@ -1,41 +1,71 @@
+import csv
 import ollama
 
-# 1. The Fake Telemetry (Our Network Anomaly)
-telemetry_data = """
-Timestamp: 2026-06-28 10:15 AM
-Interface: Mumbai-Hub to Branch-12 (MPLS)
-Status: Latency climbed from 20ms to 180ms over the last 15 minutes. Packet loss at 4%.
+MODEL = "phi3"
+
+
+def load_sop(path="sop.txt"):
+    with open(path) as f:
+        blocks = f.read().strip().split("\n\n")
+    return {int(b.split(":")[0].replace("Rule", "").strip()): b for b in blocks}
+
+
+def match_rule(row):
+    lat = float(row["latency_ms"])
+    loss = float(row["packet_loss"])
+    jit = float(row["jitter_ms"])
+    status = row["status"].strip().lower()
+
+    if status == "down":
+        return 4
+    if loss > 10:
+        return 2
+    if lat > 150 and loss > 2:
+        return 1
+    if jit > 30:
+        return 3
+    if lat < 100 and loss < 1:
+        return 5
+    return None
+
+
+def analyze(row, sop):
+    rule_no = match_rule(row)
+    if rule_no is None or rule_no not in sop:
+        return "Matched rule: none\nAction: no SOP rule fits this reading, escalate to a senior engineer."
+
+    prompt = f"""You are a NOC assistant. Using ONLY the rule below, explain the incident in two short lines. Do not mention any other rule or add extra steps.
+
+RULE:
+{sop[rule_no]}
+
+TELEMETRY:
+Link: {row['link']}
+Latency: {row['latency_ms']} ms
+Packet loss: {row['packet_loss']} %
+Jitter: {row['jitter_ms']} ms
+Status: {row['status']}
+
+Answer in exactly this format:
+Root cause: <one line>
+Action: <one line>
 """
+    response = ollama.chat(
+        model=MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        options={"temperature": 0},
+    )
+    return f"Matched rule: Rule {rule_no}\n" + response["message"]["content"].strip()
 
-# 2. The Runbook (Our Internal NOC Rules)
-runbook_context = """
-SOP for Mumbai-Hub:
-If latency exceeds 150ms and packet loss is detected, the primary cause is usually the background database replication job saturating the link.
-Action Required: Throttle QoS Class 4 traffic and re-route background jobs to the secondary SD-WAN tunnel.
-"""
 
-# 3. The Copilot Prompt
-prompt = f"""
-You are an expert NOC Copilot. Analyze the network telemetry using ONLY the provided runbook. 
+def main():
+    sop = load_sop()
+    with open("telemetry.csv") as f:
+        for row in csv.DictReader(f):
+            print("=" * 50)
+            print(row["link"])
+            print(analyze(row, sop))
 
-Runbook:
-{runbook_context}
 
-Telemetry Data:
-{telemetry_data}
-
-Output a short, structured response with:
-1. Predicted Issue
-2. Root Cause
-3. Recommended Action
-"""
-
-print("Syntax Squad Copilot analyzing network offline...\n")
-print("-" * 50)
-
-# 4. Talk to the local Phi-3 model
-response = ollama.chat(model='phi3', messages=[
-    {'role': 'user', 'content': prompt}
-])
-
-print(response['message']['content'])
+if __name__ == "__main__":
+    main()
