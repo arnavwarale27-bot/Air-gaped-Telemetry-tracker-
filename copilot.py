@@ -50,12 +50,18 @@ Answer in exactly this format:
 Root cause: <one line>
 Action: <one line>
 """
-    response = ollama.chat(
-        model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        options={"temperature": 0},
-    )
-    return f"Matched rule: Rule {rule_no}\n" + response["message"]["content"].strip()
+    try:
+        response = ollama.chat(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0},
+        )
+        return f"Matched rule: Rule {rule_no}\n" + response["message"]["content"].strip()
+    except Exception:
+        sop_lines = sop[rule_no].split("\n")
+        cause = next((l.replace("Cause:", "").strip() for l in sop_lines if l.startswith("Cause:")), "Anomaly matching SOP threshold")
+        action = next((l.replace("Action:", "").strip() for l in sop_lines if l.startswith("Action:")), "Execute SOP remediation protocol")
+        return f"Matched rule: Rule {rule_no}\nRoot cause: {cause}\nAction: {action}"
 
 
 def main():
